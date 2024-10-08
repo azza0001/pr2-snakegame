@@ -1,0 +1,415 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Arithmetic Snake Game</title>
+  <style>
+    
+  html, body {
+    height: 100%;
+    margin: 0;
+  }
+
+  body {
+    background: wheat;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  canvas {
+    border: 2px solid black;
+  }
+  
+  #score {
+    position: absolute;
+    top: 280px;
+    left: 50%;
+    transform: translateX(-50%);
+    font-size: 20px;
+    font-weight: bold;
+    font-family: Arial, sans-serif;
+    z-index: 1;
+  }
+
+  canvas {
+    position: relative;
+  }
+
+  #debug-menu {
+    position: absolute;
+    top: 10px;
+    left: 10px;
+    background-color: rgba(0, 0, 0, 0.7);
+    color: white;
+    padding: 10px;
+    font-family: Arial, sans-serif;
+    font-size: 14px;
+    z-index: 2;
+  }
+
+  #start-menu {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    background-color: rgba(0, 0, 0, 0.7);
+    color: white;
+    padding: 20px;
+    font-family: Arial, sans-serif;
+    text-align: center;
+    z-index: 3;
+  }
+
+  #start-button {
+    margin-top: 20px;
+    padding: 10px 20px;
+    font-size: 18px;
+    cursor: pointer;
+  }
+
+  .input-field {
+    margin: 10px 0;
+    padding: 5px;
+    width: 200px;
+  }
+
+  #terms-container {
+    margin-top: 10px;
+    text-align: left;
+  }
+
+  #terms-checkbox {
+    margin-right: 5px;
+  }
+
+  #question {
+    position: absolute;
+    top: 10px;
+    left: 50%;
+    transform: translateX(-50%);
+    font-size: 24px;
+    font-weight: bold;
+    font-family: Arial, sans-serif;
+    z-index: 1;
+  }
+  </style>
+</head>
+<body>
+<div id="score">Score: 0</div>
+<div id="question"></div>
+<div id="debug-menu">
+  <div>
+    <h4>PR2 Group 3 | Debug</h4>
+  </div>
+  <div>FPS: <span id="fps">0</span></div>
+  <div>Snake Length: <span id="snake-length">0</span></div>
+  <div>Correct Answers: <span id="correct-answers">0</span></div>
+  <div>Mistakes: <span id="mistakes">0</span></div>
+  <div>Time Played: <span id="time-played">0</span> seconds</div>
+  <div>Highest Score: <span id="highest-score">0</span></div>
+  <div>Attempts: <span id="attempts">0</span></div>
+</div>
+<div id="start-menu">
+  <h2 style="text-align: center;">Arithmetic Snake Game</h2>
+  <p style="text-align: center;">Highest Score: <span id="menu-highest-score">0</span></p>
+  <p style="text-align: center;">Attempts Taken: <span id="menu-attempts">0</span></p>
+  <div style="text-align: center;">
+    <input type="text" id="player-name" class="input-field" placeholder="Enter your name" required>
+    <input type="text" id="player-section" class="input-field" placeholder="Enter your section" required>
+  </div>
+  <div style="text-align: center;">
+    <h3>Terms of Service</h3>
+    <details>
+      <summary>Click to view Terms of Service</summary>
+      <h4>By playing this game, you agree to the following terms:</h4>
+      <ul>
+        <li>We will collect and log your Name and Section for the purpose of attendance tracking.</li>
+        <li>Your Name and Section will be used solely for research purposes.</li>
+        <li>We will not sell or share your information with third parties without your consent.</li>
+      </ul>
+    </details>
+  </div>
+  <div id="terms-container" style="text-align: center;">
+    <input type="checkbox" id="terms-checkbox" required>
+    <label for="terms-checkbox">I agree to the Terms of Service</label>
+  </div>
+  <button id="start-button">Start Game</button>
+</div>
+<canvas width="400" height="400" id="game"></canvas>
+<script>
+
+var canvas = document.getElementById('game');
+var context = canvas.getContext('2d');
+var scoreElement = document.getElementById('score');
+var questionElement = document.getElementById('question');
+var fpsElement = document.getElementById('fps');
+var snakeLengthElement = document.getElementById('snake-length');
+var correctAnswersElement = document.getElementById('correct-answers');
+var mistakesElement = document.getElementById('mistakes');
+var timePlayedElement = document.getElementById('time-played');
+var highestScoreElement = document.getElementById('highest-score');
+var attemptsElement = document.getElementById('attempts');
+var menuHighestScoreElement = document.getElementById('menu-highest-score');
+var menuAttemptsElement = document.getElementById('menu-attempts');
+var startMenu = document.getElementById('start-menu');
+var startButton = document.getElementById('start-button');
+var playerNameInput = document.getElementById('player-name');
+var playerSectionInput = document.getElementById('player-section');
+var termsCheckbox = document.getElementById('terms-checkbox');
+
+var grid = 16;
+var count = 0;
+var score = 0;
+var highestScore = 0;
+var correctAnswers = 0;
+var mistakes = 0;
+var attempts = 0;
+var startTime = Date.now();
+var lastFrameTime = 0;
+var fps = 0;
+var gameRunning = false;
+var playerName = '';
+var playerSection = '';
+  
+var snake = {
+  x: 160,
+  y: 160,
+  dx: grid,
+  dy: 0,
+  cells: [],
+  maxCells: 4
+};
+
+var numbers = [];
+var currentQuestion = {};
+
+function getRandomInt(min, max) {
+  return Math.floor(Math.random() * (max - min)) + min;
+}
+
+function generateQuestion() {
+  var a = getRandomInt(1, 10);
+  var b = getRandomInt(1, 10);
+  var answer = a + b;
+  currentQuestion = { a: a, b: b, answer: answer };
+  questionElement.innerHTML = `${a} + __ = ${answer}`;
+}
+
+function generateNumbers() {
+  numbers = [];
+  for (var i = 0; i < 5; i++) {
+    var number;
+    do {
+      number = getRandomInt(1, 10);
+    } while (numbers.includes(number) || number === currentQuestion.b);
+    numbers.push({
+      value: number,
+      x: getRandomInt(0, 25) * grid,
+      y: getRandomInt(0, 25) * grid
+    });
+  }
+  numbers.push({
+    value: currentQuestion.b,
+    x: getRandomInt(0, 25) * grid,
+    y: getRandomInt(0, 25) * grid
+  });
+}
+
+function resetGame() {
+  snake.x = 160;
+  snake.y = 160;
+  snake.cells = [];
+  snake.maxCells = 4;
+  snake.dx = grid;
+  snake.dy = 0;
+  score = 0;
+  correctAnswers = 0;
+  mistakes = 0;
+  startTime = Date.now();
+  scoreElement.innerHTML = 'Score: ' + score;
+  correctAnswersElement.textContent = correctAnswers;
+  mistakesElement.textContent = mistakes;
+
+  generateQuestion();
+  generateNumbers();
+}
+
+function startGame() {
+  playerName = playerNameInput.value.trim();
+  playerSection = playerSectionInput.value.trim();
+  
+  if (!playerName || !playerSection) {
+    alert('Please enter your name and section before starting the game.');
+    return;
+  }
+
+  if (!termsCheckbox.checked) {
+    alert('Please agree to the Terms of Service before starting the game.');
+    return;
+  }
+  
+  gameRunning = true;
+  attempts++;
+  attemptsElement.textContent = attempts;
+  menuAttemptsElement.textContent = attempts;
+  resetGame();
+  startMenu.style.display = 'none';
+  requestAnimationFrame(loop);
+}
+
+function endGame() {
+  gameRunning = false;
+  if (score > highestScore) {
+    highestScore = score;
+    highestScoreElement.textContent = highestScore;
+    menuHighestScoreElement.textContent = highestScore;
+  }
+  startMenu.style.display = 'block';
+  
+  // Send game data to Google Sheets
+  sendDataToGoogleSheets();
+}
+
+function sendDataToGoogleSheets() {
+  const scriptURL = 'https://script.google.com/macros/s/AKfycbyWre3KmFiVsmyATygF3PpwOA_BRwi7Vx9EPYDud3QAXVHeYLO_NIQI1wSC6dSsmCk5KQ/exec';
+  const formData = new FormData();
+  formData.append('playerName', playerName);
+  formData.append('playerSection', playerSection);
+  formData.append('score', score);
+  formData.append('correctAnswers', correctAnswers);
+  formData.append('mistakes', mistakes);
+
+  // Format time played into hours, minutes, and seconds
+  const totalSeconds = Math.floor((Date.now() - startTime) / 1000);
+  const hours = Math.floor(totalSeconds / 3600);
+  const minutes = Math.floor((totalSeconds % 3600) / 60);
+  const seconds = totalSeconds % 60;
+  const formattedTime = `${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
+  
+  formData.append('timePlayed', formattedTime);
+  formData.append('attempts', attempts);
+  formData.append('action', 'upsert'); // Add an action to indicate we want to update or insert
+
+  fetch(scriptURL, { method: 'POST', body: formData })
+    .then(response => response.json())
+    .then(data => {
+      if (data.result === 'success') {
+        console.log('Data successfully updated/inserted');
+      } else {
+        console.error('Error updating/inserting data:', data.error);
+      }
+    })
+    .catch(error => console.error('Error!', error.message));
+}
+
+function loop(timestamp) {
+  if (!gameRunning) return;
+
+  requestAnimationFrame(loop);
+
+  if (lastFrameTime) {
+    fps = Math.round(1000 / (timestamp - lastFrameTime));
+  }
+  lastFrameTime = timestamp;
+
+  // SNAKE MOVEMENT SPEED
+  if (++count < 6) {
+    return;
+  }
+
+  count = 0;
+  context.clearRect(0,0,canvas.width,canvas.height);
+
+  snake.x += snake.dx;
+  snake.y += snake.dy;
+
+  if (snake.x < 0) {
+    snake.x = canvas.width - grid;
+  }
+  else if (snake.x >= canvas.width) {
+    snake.x = 0;
+  }
+  
+  if (snake.y < 0) {
+    snake.y = canvas.height - grid;
+  }
+  else if (snake.y >= canvas.height) {
+    snake.y = 0;
+  }
+
+  snake.cells.unshift({x: snake.x, y: snake.y});
+
+  if (snake.cells.length > snake.maxCells) {
+    snake.cells.pop();
+  }
+
+  context.fillStyle = 'white';
+  numbers.forEach(function(number) {
+    context.fillRect(number.x, number.y, grid-1, grid-1);
+    context.fillStyle = 'black';
+    context.font = '12px Arial';
+    context.fillText(number.value, number.x + 4, number.y + 12);
+    context.fillStyle = 'white';
+  });
+
+  context.fillStyle = 'green';
+  snake.cells.forEach(function(cell, index) {
+    context.fillRect(cell.x, cell.y, grid-1, grid-1);  
+
+    numbers.forEach(function(number, numberIndex) {
+      if (cell.x === number.x && cell.y === number.y) {
+        if (number.value === currentQuestion.b) {
+          snake.maxCells++;
+          score++;
+          correctAnswers++;
+          scoreElement.innerHTML = 'Score: ' + score;
+          correctAnswersElement.textContent = correctAnswers;
+          generateQuestion();
+          generateNumbers();
+        } else {
+          mistakes++;
+          mistakesElement.textContent = mistakes;
+        }
+        numbers.splice(numberIndex, 1);
+      }
+    });
+
+    for (var i = index + 1; i < snake.cells.length; i++) {
+      if (cell.x === snake.cells[i].x && cell.y === snake.cells[i].y) {
+        endGame();
+        return;
+      }
+    }
+  });
+
+  fpsElement.textContent = fps;
+  snakeLengthElement.textContent = snake.cells.length;
+  timePlayedElement.textContent = Math.floor((Date.now() - startTime) / 1000);
+}
+
+document.addEventListener('keydown', function(e) {
+  if (!gameRunning) return;
+  
+  if ((e.which === 37 || e.which === 65) && snake.dx === 0) {
+    snake.dx = -grid;
+    snake.dy = 0;
+  }
+  else if ((e.which === 38 || e.which === 87) && snake.dy === 0) {
+    snake.dy = -grid;
+    snake.dx = 0;
+  }
+  else if ((e.which === 39 || e.which === 68) && snake.dx === 0) {
+    snake.dx = grid;
+    snake.dy = 0;
+  }
+  else if ((e.which === 40 || e.which === 83) && snake.dy === 0) {
+    snake.dy = grid;
+    snake.dx = 0;
+  }
+});
+
+startButton.addEventListener('click', startGame);
+
+</script>
+</body>
+</html>
