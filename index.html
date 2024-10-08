@@ -92,6 +92,15 @@
     font-family: Arial, sans-serif;
     z-index: 1;
   }
+
+  #version {
+    position: absolute;
+    bottom: 10px;
+    right: 10px;
+    color: #8B7355;
+    font-family: Arial, sans-serif;
+    font-size: 12px;
+  }
   </style>
 </head>
 <body>
@@ -136,7 +145,10 @@
   <button id="start-button">Start Game</button>
 </div>
 <canvas width="400" height="400" id="game"></canvas>
+<div id="version">v0.3.0</div>
 <script>
+
+// VARIABLES
 
 var canvas = document.getElementById('game');
 var context = canvas.getContext('2d');
@@ -170,6 +182,7 @@ var fps = 0;
 var gameRunning = false;
 var playerName = '';
 var playerSection = '';
+var wrongAnswerPulse = 0;
   
 var snake = {
   x: 160,
@@ -188,31 +201,64 @@ function getRandomInt(min, max) {
 }
 
 function generateQuestion() {
-  var a = getRandomInt(1, 10);
-  var b = getRandomInt(1, 10);
-  var answer = a + b;
-  currentQuestion = { a: a, b: b, answer: answer };
-  questionElement.innerHTML = `${a} + __ = ${answer}`;
+  var operations = ['+', '-', '*', '/'];
+  var operation = operations[Math.floor(Math.random() * operations.length)];
+  var a, b, answer;
+
+  switch(operation) {
+    case '+':
+      a = getRandomInt(1, 10);
+      b = getRandomInt(1, 10);
+      answer = a + b;
+      currentQuestion = { a: a, b: b, answer: answer, operation: operation };
+      questionElement.innerHTML = `${a} + __ = ${answer}`;
+      break;
+    case '-':
+      a = getRandomInt(1, 10);
+      b = getRandomInt(1, a);
+      answer = a - b;
+      currentQuestion = { a: a, b: b, answer: answer, operation: operation };
+      questionElement.innerHTML = `${a} - __ = ${answer}`;
+      break;
+    case '*':
+      a = getRandomInt(1, 10);
+      b = getRandomInt(1, 10);
+      answer = a * b;
+      currentQuestion = { a: a, b: b, answer: answer, operation: operation };
+      questionElement.innerHTML = `${a} × __ = ${answer}`;
+      break;
+    case '/':
+      b = getRandomInt(1, 10);
+      a = b * getRandomInt(1, 10);
+      answer = a / b;
+      currentQuestion = { a: a, b: b, answer: answer, operation: operation };
+      questionElement.innerHTML = `${a} ÷ __ = ${answer}`;
+      break;
+  }
 }
 
 function generateNumbers() {
   numbers = [];
-  for (var i = 0; i < 5; i++) {
+  // Always include the correct answer
+  numbers.push({
+    value: currentQuestion.b,
+    x: getRandomInt(0, 25) * grid,
+    y: getRandomInt(0, 25) * grid
+  });
+  
+  // Generate other numbers, ensuring they're different from the correct answer
+  for (var i = 1; i < 6; i++) {
     var number;
     do {
       number = getRandomInt(1, 10);
-    } while (numbers.includes(number) || number === currentQuestion.b);
+    } while (number === currentQuestion.b || numbers.some(n => n.value === number));
+    
     numbers.push({
       value: number,
       x: getRandomInt(0, 25) * grid,
       y: getRandomInt(0, 25) * grid
     });
   }
-  numbers.push({
-    value: currentQuestion.b,
-    x: getRandomInt(0, 25) * grid,
-    y: getRandomInt(0, 25) * grid
-  });
 }
 
 function resetGame() {
@@ -229,6 +275,7 @@ function resetGame() {
   scoreElement.innerHTML = 'Score: ' + score;
   correctAnswersElement.textContent = correctAnswers;
   mistakesElement.textContent = mistakes;
+  wrongAnswerPulse = 0;
 
   generateQuestion();
   generateNumbers();
@@ -255,6 +302,10 @@ function startGame() {
   resetGame();
   startMenu.style.display = 'none';
   requestAnimationFrame(loop);
+
+  // Generate initial question and numbers pls.
+  generateQuestion();
+  generateNumbers();
 }
 
 function endGame() {
@@ -266,8 +317,52 @@ function endGame() {
   }
   startMenu.style.display = 'block';
   
-  // Send game data to Google Sheets
+  // Send game data to Google Sheets!!!!!!!!
   sendDataToGoogleSheets();
+
+  // Display Skibidi Death Screen if player made 3 mistakes yes.
+  if (mistakes >= 3) {
+    showSkibidiDeathScreen();
+  }
+}
+
+function showSkibidiDeathScreen() {
+  // Create a full-screen div for the death screen
+  const deathScreen = document.createElement('div');
+  deathScreen.style.position = 'fixed';
+  deathScreen.style.top = '0';
+  deathScreen.style.left = '0';
+  deathScreen.style.width = '100%';
+  deathScreen.style.height = '100%';
+  deathScreen.style.backgroundColor = 'black';
+  deathScreen.style.color = 'red';
+  deathScreen.style.display = 'flex';
+  deathScreen.style.flexDirection = 'column';
+  deathScreen.style.justifyContent = 'center';
+  deathScreen.style.alignItems = 'center';
+  deathScreen.style.zIndex = '1000';
+
+  // Add text to the death screen
+  const deathText = document.createElement('h1');
+  deathText.textContent = 'SKIBIDI DEATH!';
+  deathText.style.fontSize = '48px';
+  deathScreen.appendChild(deathText);
+
+  // Add a button to restart the game
+  const restartButton = document.createElement('button');
+  restartButton.textContent = 'Restart Game';
+  restartButton.style.marginTop = '20px';
+  restartButton.style.padding = '10px 20px';
+  restartButton.style.fontSize = '24px';
+  restartButton.addEventListener('click', () => {
+    document.body.removeChild(deathScreen);
+    resetGame();
+    //startGame();
+  });
+  deathScreen.appendChild(restartButton);
+
+  // skibidi death screen LoL
+  document.body.appendChild(deathScreen);
 }
 
 function sendDataToGoogleSheets() {
@@ -343,17 +438,28 @@ function loop(timestamp) {
     snake.cells.pop();
   }
 
-  context.fillStyle = 'white';
+  // Check if the correct answer is present
+  let correctAnswerPresent = numbers.some(number => number.value === currentQuestion.b);
+  if (!correctAnswerPresent) {
+    // If not present, replace a random number with the correct answer
+    let randomIndex = Math.floor(Math.random() * numbers.length);
+    numbers[randomIndex] = {
+      value: currentQuestion.b,
+      x: getRandomInt(0, 25) * grid,
+      y: getRandomInt(0, 25) * grid
+    };
+  }
+
   numbers.forEach(function(number) {
+    context.fillStyle = 'white';
     context.fillRect(number.x, number.y, grid-1, grid-1);
     context.fillStyle = 'black';
     context.font = '12px Arial';
     context.fillText(number.value, number.x + 4, number.y + 12);
-    context.fillStyle = 'white';
   });
 
-  context.fillStyle = 'green';
   snake.cells.forEach(function(cell, index) {
+    context.fillStyle = 'green';
     context.fillRect(cell.x, cell.y, grid-1, grid-1);  
 
     numbers.forEach(function(number, numberIndex) {
@@ -369,6 +475,10 @@ function loop(timestamp) {
         } else {
           mistakes++;
           mistakesElement.textContent = mistakes;
+          if (mistakes >= 3) {
+            endGame();
+            return;
+          }
         }
         numbers.splice(numberIndex, 1);
       }
